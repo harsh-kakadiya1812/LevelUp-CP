@@ -1,0 +1,27 @@
+# Python virtual environments
+cp_project/
+venv/
+.venv/
+
+# Database installers
+database/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ML models
+models/
+*.pkl
+*.pt
+*.pth
+*.onnx
+
+# Node
+node_modules/
