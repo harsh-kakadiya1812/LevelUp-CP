@@ -76,7 +76,9 @@ def full_analysis(handle: str):
     profile = process_user_profile(user_info, submissions, rating_history)
 
     # Step 5: Build skill analysis
-    skill_profile  = build_skill_profile(profile['tag_features'])
+    skill_profile = build_skill_profile(
+    profile['tag_features'],
+    user_rating=profile['current_rating'])
     comfort_rating = compute_comfort_rating(profile['tag_features'])
     neglected      = find_neglected_topics(profile['tag_features'])
     breakthroughs  = find_breakthrough_topics(profile['tag_features'])
@@ -136,7 +138,9 @@ def get_skill_profile(handle: str):
         })
 
     tag_features   = compute_tag_features(raw_subs)
-    skill_profile  = build_skill_profile(tag_features)
+    user          = get_user_from_db(handle)
+    user_rating   = int(getattr(user, "current_rating", 0) or 0) if user else 0
+    skill_profile = build_skill_profile(tag_features, user_rating=user_rating)
     comfort_rating = compute_comfort_rating(tag_features)
     neglected      = find_neglected_topics(tag_features)
     breakthroughs  = find_breakthrough_topics(tag_features)

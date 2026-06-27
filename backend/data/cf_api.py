@@ -92,3 +92,97 @@ def validate_handle(handle):
     """
     result = get_user_info(handle)
     return result is not None
+
+def get_all_tags():
+    """
+    Returns the complete list of all Codeforces problem tags.
+    These are hardcoded because CF doesn't have an API for just tags.
+    Updated as of 2024 — covers all tags that appear in CF problemset.
+    """
+    return [
+        # Algorithms
+        "dp",
+        "greedy",
+        "graphs",
+        "math",
+        "brute force",
+        "binary search",
+        "trees",
+        "strings",
+        "number theory",
+        "geometry",
+        "combinatorics",
+        "two pointers",
+        "sorting",
+        "dfs and similar",
+        "bfs",
+        "data structures",
+        "implementation",
+        "divide and conquer",
+
+        # Data Structures
+        "dsu",
+        "segment tree",
+        "fenwick tree",
+        "binary indexed tree",
+        "sparse table",
+        "stack",
+        "queue",
+        "deque",
+        "linked list",
+        "hashing",
+
+        # Graph Algorithms
+        "shortest paths",
+        "flows",
+        "bipartite",
+        "matching",
+        "strongly connected components",
+        "topological sort",
+        "minimum spanning tree",
+        "euler path",
+        "2-sat",
+        "lca",
+        "centroid decomposition",
+        "heavy-light decomposition",
+
+        # String Algorithms
+        "string suffix structures",
+        "aho-corasick",
+        "kmp",
+        "z-function",
+        "suffix array",
+        "palindromes",
+
+        # Math
+        "probabilities",
+        "matrices",
+        "fft",
+        "game theory",
+        "chinese remainder theorem",
+        "meet-in-the-middle",
+        "gaussian elimination",
+        "inclusion-exclusion",
+        "mobius function",
+        "modular arithmetic",
+
+        # DP Types
+        "bitmask",
+        "dp on trees",
+        "dp on graphs",
+        "knapsack",
+        "digit dp",
+        "sos dp",
+
+        # Advanced
+        "interactive",
+        "constructive algorithms",
+        "randomized algorithms",
+        "schedules",
+        "sqrt decomposition",
+        "convex hull",
+        "line sweep",
+        "ternary search",
+        "expression parsing",
+        "tries"
+    ]

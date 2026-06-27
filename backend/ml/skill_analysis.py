@@ -1,11 +1,14 @@
 import numpy as np
 import time
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # ── Constants ─────────────────────────────────────
 
-WEAK_THRESHOLD     = 0.30
-MODERATE_THRESHOLD = 0.55
+WEAK_THRESHOLD     = 0.50
+MODERATE_THRESHOLD = 0.65
 
 # Minimum problems attempted to include a tag
 MIN_ATTEMPTS = 3
@@ -130,22 +133,13 @@ def classify_momentum(momentum):
 
 # ── Main Skill Profile Builder ────────────────────
 
-def build_skill_profile(tag_features):
+def build_skill_profile(tag_features, user_rating=0):
     """
-    Takes full tag_features dict and returns
-    complete skill profile with all new metrics.
-
-    Output includes:
-    - weak / moderate / strong lists
-    - scores per tag
-    - momentum per tag
-    - contest mastery per tag
-    - first-try precision per tag
+    Updated: now accepts user_rating to classify untouched topics.
     """
     scored_tags = []
 
     for tag, features in tag_features.items():
-        # Skip tags with too few attempts
         if features.get('total_attempted', 0) < MIN_ATTEMPTS:
             continue
 
@@ -155,19 +149,16 @@ def build_skill_profile(tag_features):
         mom_label = classify_momentum(momentum)
 
         scored_tags.append({
-            # Identity
             "tag":   tag,
             "level": level,
             "score": score,
 
-            # Core features
             "solve_rate":      features.get('solve_rate', 0),
             "avg_attempts":    features.get('avg_attempts', 0),
             "highest_rating":  features.get('highest_rating', 0),
             "total_solved":    features.get('total_solved', 0),
             "total_attempted": features.get('total_attempted', 0),
 
-            # New features
             "avg_rating_solved":        features.get('avg_rating_solved', 0),
             "recency_days":             features.get('recency_days', 999),
             "contest_solve_percentage": features.get('contest_solve_percentage', 0),
@@ -177,17 +168,19 @@ def build_skill_profile(tag_features):
             "momentum_label":           mom_label
         })
 
-    # Sort weakest first
     scored_tags.sort(key=lambda x: x['score'])
 
     weak_tags     = [t for t in scored_tags if t['level'] == "Weak"]
     moderate_tags = [t for t in scored_tags if t['level'] == "Moderate"]
     strong_tags   = [t for t in scored_tags if t['level'] == "Strong"]
 
-    # Lookup dicts for quick access
-    scores   = {t['tag']: t['score']         for t in scored_tags}
-    levels   = {t['tag']: t['level']         for t in scored_tags}
-    momentum = {t['tag']: t['momentum']      for t in scored_tags}
+    scores   = {t['tag']: t['score']    for t in scored_tags}
+    levels   = {t['tag']: t['level']    for t in scored_tags}
+    momentum = {t['tag']: t['momentum'] for t in scored_tags}
+
+    # ── NEW: Find never touched topics ────────────
+    never_touched    = find_never_touched_topics(tag_features, user_rating)
+    untouched_summary = get_untouched_summary(never_touched)
 
     return {
         "weak":     [t['tag'] for t in weak_tags],
@@ -197,11 +190,17 @@ def build_skill_profile(tag_features):
         "levels":   levels,
         "momentum": momentum,
         "details":  scored_tags,
+
+        # NEW
+        "never_touched":       never_touched,
+        "untouched_summary":   untouched_summary,
+
         "summary": {
-            "total":    len(scored_tags),
-            "weak":     len(weak_tags),
-            "moderate": len(moderate_tags),
-            "strong":   len(strong_tags)
+            "total":         len(scored_tags),
+            "weak":          len(weak_tags),
+            "moderate":      len(moderate_tags),
+            "strong":        len(strong_tags),
+            "never_touched": len(never_touched)    # NEW
         }
     }
 
@@ -341,7 +340,230 @@ def detect_stagnation(skill_profile, rating_history):
         "weak_tag_count":    weak_count
     }
 
+# Add this import at the top if not already there
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
+def find_never_touched_topics(tag_features, user_rating=0):
+    """
+    Find CF topics the user has NEVER attempted even once.
+
+    These are completely different from weak topics:
+    - Weak = attempted but struggling
+    - Never touched = zero submissions ever
+
+    Args:
+        tag_features: dict of {tag: features} from data_processor
+        user_rating:  current CF rating (used to prioritize which
+                      untouched topics matter most for their level)
+
+    Returns:
+        List of dicts with tag name, priority, and why it matters
+    """
+    from data.cf_api import get_all_tags
+
+    # All tags the user has at least attempted
+    practiced_tags = set(tag_features.keys())
+
+    # All known CF tags
+    all_cf_tags = get_all_tags()
+
+    # Find never touched
+    never_touched = []
+
+    for tag in all_cf_tags:
+        if tag not in practiced_tags:
+
+            # Determine priority based on user rating
+            # Lower rated users should focus on fundamentals first
+            priority = classify_untouched_priority(tag, user_rating)
+
+            never_touched.append({
+                "tag":      tag,
+                "priority": priority['level'],
+                "reason":   priority['reason'],
+                "order":    priority['order']  # for sorting
+            })
+
+    # Sort by priority order (most important first)
+    never_touched.sort(key=lambda x: x['order'])
+
+    return never_touched
+
+
+def classify_untouched_priority(tag, user_rating):
+    """
+    Given an untouched tag and user rating,
+    classify how urgently they should learn it.
+
+    Returns:
+        {level: 'Critical'/'Important'/'Advanced'/'Optional',
+         reason: explanation string,
+         order: sort order (lower = higher priority)}
+    """
+
+    # ── Fundamental tags (everyone needs these) ────
+    fundamentals = {
+        "implementation",
+        "brute force",
+        "math",
+        "greedy",
+        "sorting",
+        "binary search",
+        "two pointers",
+        "dp",
+        "graphs",
+        "dfs and similar",
+        "bfs",
+        "trees",
+        "strings",
+        "data structures",
+        "number theory",
+        "combinatorics"
+    }
+
+    # ── Intermediate tags (1400+ should know) ─────
+    intermediate = {
+        "hashing",
+        "dsu",
+        "segment tree",
+        "shortest paths",
+        "constructive algorithms",
+        "divide and conquer",
+        "stack",
+        "queue",
+        "deque",
+        "bipartite",
+        "topological sort",
+        "minimum spanning tree",
+        "game theory",
+        "probabilities",
+        "bitmask",
+        "string suffix structures",
+        "ternary search"
+    }
+
+    # ── Advanced tags (1900+ level) ───────────────
+    advanced = {
+        "flows",
+        "matching",
+        "strongly connected components",
+        "2-sat",
+        "lca",
+        "centroid decomposition",
+        "heavy-light decomposition",
+        "fft",
+        "matrices",
+        "sqrt decomposition",
+        "convex hull",
+        "suffix array",
+        "aho-corasick",
+        "fenwick tree",
+        "sparse table",
+        "gaussian elimination",
+        "inclusion-exclusion",
+        "meet-in-the-middle",
+        "digit dp",
+        "dp on trees"
+    }
+
+    # ── Classify based on tag and user rating ──────
+
+    if tag in fundamentals:
+        if user_rating >= 1400:
+            # A 1400+ user not touching fundamentals is a red flag
+            return {
+                "level":  "🔴 Critical",
+                "reason": f"Fundamental topic — must know at rating {user_rating}",
+                "order":  1
+            }
+        else:
+            return {
+                "level":  "🔴 Critical",
+                "reason": "Core fundamental — learn this first",
+                "order":  1
+            }
+
+    elif tag in intermediate:
+        if user_rating >= 1600:
+            return {
+                "level":  "🟠 Important",
+                "reason": f"Expected knowledge at your rating level ({user_rating})",
+                "order":  2
+            }
+        elif user_rating >= 1200:
+            return {
+                "level":  "🟠 Important",
+                "reason": "Next step after fundamentals",
+                "order":  2
+            }
+        else:
+            return {
+                "level":  "🟡 Learn Soon",
+                "reason": "Intermediate topic — learn after fundamentals",
+                "order":  3
+            }
+
+    elif tag in advanced:
+        if user_rating >= 1900:
+            return {
+                "level":  "🟠 Important",
+                "reason": f"Expected at your rating level ({user_rating})",
+                "order":  2
+            }
+        elif user_rating >= 1600:
+            return {
+                "level":  "🟡 Learn Soon",
+                "reason": "Advanced topic — start exploring",
+                "order":  3
+            }
+        else:
+            return {
+                "level":  "🔵 Advanced",
+                "reason": "Advanced topic — focus on fundamentals first",
+                "order":  4
+            }
+
+    else:
+        return {
+            "level":  "⚪ Optional",
+            "reason": "Specialized topic — learn when needed",
+            "order":  5
+        }
+
+
+def get_untouched_summary(never_touched):
+    """
+    Returns a quick summary of untouched topics by priority.
+    Used for dashboard metric cards.
+    """
+    summary = {
+        "critical":  [],
+        "important": [],
+        "learn_soon": [],
+        "advanced":  [],
+        "optional":  [],
+        "total":     len(never_touched)
+    }
+
+    for t in never_touched:
+        priority = t['priority']
+        tag      = t['tag']
+
+        if 'Critical' in priority:
+            summary['critical'].append(tag)
+        elif 'Important' in priority:
+            summary['important'].append(tag)
+        elif 'Learn Soon' in priority:
+            summary['learn_soon'].append(tag)
+        elif 'Advanced' in priority:
+            summary['advanced'].append(tag)
+        else:
+            summary['optional'].append(tag)
+
+    return summary
 # # ── Test ──────────────────────────────────────────
 
 # if __name__ == "__main__":
