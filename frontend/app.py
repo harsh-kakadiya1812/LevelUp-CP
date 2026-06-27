@@ -67,12 +67,13 @@ c3.metric("Total Solved",    data['total_solved'])
 c4.metric("Weekly Rate",     f"{data['weekly_solve_rate']}/wk")
 c5.metric("Consistency",     data['consistency_score'])
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 c1.metric("Contests",        data['contest_count'])
 c2.metric("Tag Diversity",   data['tag_diversity'])
 c3.metric("Weak Topics",     skill['summary']['weak'])
 c4.metric("Moderate",        skill['summary']['moderate'])
 c5.metric("Strong Topics",   skill['summary']['strong'])
+c6.metric("Never Touched",   skill['summary']['never_touched'])
 
 # ── Alerts ────────────────────────────────────────
 if stagnation['is_stagnant']:
@@ -156,6 +157,117 @@ with c3:
         score    = skill['scores'][tag]
         st.markdown(f"- {tag} `{score:.2f}`")
 
+# ── Section: Never Touched Topics ─────────────────
+if 'data' in st.session_state:
+    data  = st.session_state['data']
+    skill = data['skill_profile']
+
+    never_touched      = skill.get('never_touched', [])
+    untouched_summary  = skill.get('untouched_summary', {})
+
+    if never_touched:
+        st.divider()
+        st.subheader("🚫 Topics You Have Never Touched")
+        st.caption(
+            "These are CF problem tags that don't appear "
+            "anywhere in your submission history."
+        )
+
+        # ── Summary Metrics ────────────────────────
+        col1, col2, col3, col4, col5 = st.columns(5)
+        col1.metric(
+            "Total Untouched",
+            untouched_summary.get('total', 0)
+        )
+        col2.metric(
+            "🔴 Critical",
+            len(untouched_summary.get('critical', []))
+        )
+        col3.metric(
+            "🟠 Important",
+            len(untouched_summary.get('important', []))
+        )
+        col4.metric(
+            "🟡 Learn Soon",
+            len(untouched_summary.get('learn_soon', []))
+        )
+        col5.metric(
+            "🔵 Advanced",
+            len(untouched_summary.get('advanced', []))
+        )
+
+        st.divider()
+
+        # ── Critical Alert ─────────────────────────
+        critical = untouched_summary.get('critical', [])
+        if critical:
+            st.error(
+                f"⚠️ **Critical gaps detected:** "
+                f"You have never attempted: "
+                f"**{', '.join(critical)}**. "
+                f"These are fundamental topics at your rating level."
+            )
+
+        # ── Tabs by Priority ───────────────────────
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            f"🔴 Critical ({len(untouched_summary.get('critical', []))})",
+            f"🟠 Important ({len(untouched_summary.get('important', []))})",
+            f"🟡 Learn Soon ({len(untouched_summary.get('learn_soon', []))})",
+            f"🔵 Advanced ({len(untouched_summary.get('advanced', []))})",
+            f"⚪ Optional ({len(untouched_summary.get('optional', []))})"
+        ])
+
+        def render_untouched_tab(tab, priority_key, priority_label):
+            with tab:
+                tags_in_priority = [
+                    t for t in never_touched
+                    if priority_label in t['priority']
+                ]
+
+                if not tags_in_priority:
+                    st.success(f"No {priority_label.lower()} gaps!")
+                    return
+
+                for item in tags_in_priority:
+                    col1, col2, col3 = st.columns([2, 4, 2])
+
+                    with col1:
+                        st.markdown(f"**{item['tag']}**")
+
+                    with col2:
+                        st.caption(item['reason'])
+
+                    with col3:
+                        # Link to CF problems for this tag
+                        cf_tag_url = (
+                            f"https://codeforces.com/problemset"
+                            f"?tags={item['tag'].replace(' ', '+')}"
+                        )
+                        st.link_button(
+                            "Practice →",
+                            cf_tag_url,
+                            use_container_width=True
+                        )
+
+        render_untouched_tab(tab1, 'critical',   'Critical')
+        render_untouched_tab(tab2, 'important',  'Important')
+        render_untouched_tab(tab3, 'learn_soon', 'Learn Soon')
+        render_untouched_tab(tab4, 'advanced',   'Advanced')
+        render_untouched_tab(tab5, 'optional',   'Optional')
+
+        # ── Full Table View ────────────────────────
+        st.divider()
+        with st.expander("📋 View All Untouched Topics as Table"):
+            import pandas as pd
+            table = pd.DataFrame([
+                {
+                    "Topic":    t['tag'],
+                    "Priority": t['priority'],
+                    "Reason":   t['reason']
+                }
+                for t in never_touched
+            ])
+            st.dataframe(table, use_container_width=True, height=400)
 # ── Section 4: Full Tag Table ──────────────────────
 st.divider()
 st.subheader("📋 Full Tag Analysis — All Metrics")
