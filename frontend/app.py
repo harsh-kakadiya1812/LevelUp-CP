@@ -268,6 +268,188 @@ if 'data' in st.session_state:
                 for t in never_touched
             ])
             st.dataframe(table, use_container_width=True, height=400)
+
+# ── Section: Rating Prediction ─────────────────────
+
+if 'data' in st.session_state:
+    data       = st.session_state['data']
+    prediction = data.get('rating_prediction', {})
+
+    if prediction and not prediction.get('error'):
+
+        st.divider()
+        st.subheader("📈 Rating Prediction")
+
+        current = prediction.get('current_rating', 0)
+        pred_3m = prediction.get('3_months', {})
+        pred_6m = prediction.get('6_months', {})
+        explain = prediction.get('explanation', {})
+
+        # ── Prediction Cards ───────────────────────
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                label   = "Current Rating",
+                value   = current
+            )
+
+        with col2:
+            if pred_3m:
+                change_3m = pred_3m['mid'] - current
+                st.metric(
+                    label  = "Predicted in 3 Months",
+                    value  = f"{pred_3m['low']} – {pred_3m['high']}",
+                    delta  = f"{change_3m:+d} from now"
+                )
+
+        with col3:
+            if pred_6m:
+                change_6m = pred_6m['mid'] - current
+                st.metric(
+                    label  = "Predicted in 6 Months",
+                    value  = f"{pred_6m['low']} – {pred_6m['high']}",
+                    delta  = f"{change_6m:+d} from now"
+                )
+
+        # ── Model Accuracy Note ────────────────────
+        mae_3m = prediction.get('model_mae_3m', 0)
+        st.caption(
+            f"ℹ️ Model accuracy: ±{mae_3m:.0f} rating points. "
+            f"{prediction.get('confidence_note', '')}"
+        )
+
+        # ── Rating Trajectory Graph ────────────────
+        import plotly.graph_objects as go
+        import pandas as pd
+
+        st.subheader("📉 Rating Trajectory")
+
+        rating_history = data.get('rating_history', [])
+
+        if rating_history:
+            hist_df           = pd.DataFrame(rating_history)
+            hist_df['date']   = pd.to_datetime(hist_df['timestamp'], unit='s')
+            hist_df           = hist_df.sort_values('date')
+
+            fig = go.Figure()
+
+            # Past rating (solid line)
+            fig.add_trace(go.Scatter(
+                x     = hist_df['date'],
+                y     = hist_df['new_rating'],
+                mode  = 'lines+markers',
+                name  = 'Historical Rating',
+                line  = dict(color='royalblue', width=2),
+                marker = dict(size=4)
+            ))
+
+            # Future prediction (dotted line with range)
+            import time
+            now      = pd.Timestamp.now()
+            date_3m  = now + pd.DateOffset(months=3)
+            date_6m  = now + pd.DateOffset(months=6)
+
+            last_rating = hist_df['new_rating'].iloc[-1]
+
+            if pred_3m and pred_6m:
+                # Predicted midpoint line
+                fig.add_trace(go.Scatter(
+                    x    = [now, date_3m, date_6m],
+                    y    = [last_rating, pred_3m['mid'], pred_6m['mid']],
+                    mode = 'lines+markers',
+                    name = 'Predicted (midpoint)',
+                    line = dict(color='green', width=2, dash='dot'),
+                    marker = dict(size=8, symbol='diamond')
+                ))
+
+                # Upper bound
+                fig.add_trace(go.Scatter(
+                    x    = [now, date_3m, date_6m],
+                    y    = [last_rating, pred_3m['high'], pred_6m['high']],
+                    mode = 'lines',
+                    name = 'Prediction upper bound',
+                    line = dict(color='rgba(0,200,0,0.3)', width=1, dash='dot'),
+                    showlegend = False
+                ))
+
+                # Lower bound with fill
+                fig.add_trace(go.Scatter(
+                    x          = [now, date_3m, date_6m],
+                    y          = [last_rating, pred_3m['low'], pred_6m['low']],
+                    mode       = 'lines',
+                    name       = 'Prediction range',
+                    line       = dict(color='rgba(0,200,0,0.3)', width=1, dash='dot'),
+                    fill       = 'tonexty',
+                    fillcolor  = 'rgba(0,200,0,0.1)'
+                ))
+
+                # Add annotations for prediction points
+                fig.add_annotation(
+                    x    = date_3m,
+                    y    = pred_3m['mid'],
+                    text = f"3M: {pred_3m['low']}–{pred_3m['high']}",
+                    showarrow = True,
+                    arrowhead = 2,
+                    bgcolor   = 'rgba(255,255,255,0.8)'
+                )
+                fig.add_annotation(
+                    x    = date_6m,
+                    y    = pred_6m['mid'],
+                    text = f"6M: {pred_6m['low']}–{pred_6m['high']}",
+                    showarrow = True,
+                    arrowhead = 2,
+                    bgcolor   = 'rgba(255,255,255,0.8)'
+                )
+
+            fig.update_layout(
+                title  = f"Rating History + Prediction — {data['handle']}",
+                xaxis_title = "Date",
+                yaxis_title = "Rating",
+                height = 450,
+                hovermode = 'x unified'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        # ── Explanation ────────────────────────────
+        st.subheader("🔍 What's Driving This Prediction")
+
+        if explain:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("**Factors affecting your prediction:**")
+                for factor in explain.get('factors', []):
+                    if factor['impact'] == 'positive':
+                        st.success(f"✅ **{factor['feature']}**: {factor['detail']}")
+                    elif factor['impact'] == 'neutral':
+                        st.warning(f"⚠️ **{factor['feature']}**: {factor['detail']}")
+                    else:
+                        st.error(f"❌ **{factor['feature']}**: {factor['detail']}")
+
+            with col2:
+                suggestions = explain.get('suggestions', [])
+                if suggestions:
+                    st.markdown("**To push your prediction higher:**")
+                    for suggestion in suggestions:
+                        st.markdown(f"→ {suggestion}")
+                else:
+                    st.success("You're on the right track! Keep up the current pace.")
+
+        # ── Feature Values Used ────────────────────
+        with st.expander("🔧 Model Input Values (what was passed to the model)"):
+            features_used = prediction.get('features_used', {})
+            if features_used:
+                feat_df = pd.DataFrame([
+                    {"Feature": k, "Value": round(v, 3)}
+                    for k, v in features_used.items()
+                ])
+                st.dataframe(feat_df, use_container_width=True)
+
+    elif prediction and prediction.get('error'):
+        st.warning(
+            f"⚠️ Rating prediction unavailable: {prediction['error']}"
+        )
 # ── Section 4: Full Tag Table ──────────────────────
 st.divider()
 st.subheader("📋 Full Tag Analysis — All Metrics")
