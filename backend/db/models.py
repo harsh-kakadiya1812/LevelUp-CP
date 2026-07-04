@@ -38,7 +38,7 @@ class Submission(Base):
     verdict          = Column(String)
     timestamp        = Column(BigInteger)
     language         = Column(String)
-    participant_type = Column(String, default='PRACTICE')   # NEW
+    participant_type = Column(String, default='PRACTICE')
 
 
 class Problem(Base):
