@@ -675,3 +675,237 @@ st.info(
     f"Daily problem recommendations will be at "
     f"**{data['comfort_rating'] + 100}–{data['comfort_rating'] + 200}** difficulty"
 )
+
+# ── Section: Daily Recommendations ────────────────
+if 'data' in st.session_state:
+    data  = st.session_state['data']
+    recs  = data.get('recommendations', {})
+    daily = recs.get('daily', [])
+
+    st.divider()
+    st.subheader("📚 Today's 3 Problems")
+    st.caption(
+        f"Personalized for your skill gaps. "
+        f"Comfort rating: **{data.get('comfort_rating', '?')}**"
+    )
+
+    if not daily:
+        st.warning(
+            "No recommendations available. "
+            "Make sure problems are cached via /api/cache-problems"
+        )
+    else:
+        cols = st.columns(3)
+        for i, (col, prob) in enumerate(zip(cols, daily)):
+            if not prob:
+                continue
+            with col:
+                # Color code by type
+                if i == 0:
+                    st.error(f"**Problem {i+1} — Weak Tag**")
+                elif i == 1:
+                    st.warning(f"**Problem {i+2} — Practice**")
+                else:
+                    st.success(f"**Problem {i+3} — Quick Win ⚡**")
+
+                st.markdown(f"### {prob['title']}")
+                st.markdown(f"**Rating:** {prob['rating']}")
+                st.markdown(f"**Focus Tag:** `{prob['tag_focused']}`")
+                st.markdown(f"**Tags:** {', '.join(prob['tags'][:3])}")
+                st.caption(prob['reason'])
+                st.link_button(
+                    "Solve on Codeforces →",
+                    prob['cf_url'],
+                    use_container_width=True
+                )
+
+    # ── Section: Problem Ladder ────────────────────
+    st.divider()
+    st.subheader("🪜 Problem Ladder — Solve This Before That")
+    st.caption(
+        "Sequenced learning path based on your current level. "
+        "Follow this order to build skills systematically."
+    )
+
+    ladder = recs.get('ladder', {})
+    if ladder:
+        if ladder.get('ready'):
+            st.info(f"🎯 **Next topic to master: `{ladder['next_topic']}`**")
+            st.markdown(ladder.get('message', ''))
+
+            ladder_problems = ladder.get('problems', [])
+            if ladder_problems:
+                for i, prob in enumerate(ladder_problems, 1):
+                    with st.expander(
+                        f"Step {i}: {prob['title']} "
+                        f"(Rating: {prob['rating']})"
+                    ):
+                        st.markdown(f"**Tags:** {', '.join(prob['tags'])}")
+                        st.caption(prob['reason'])
+                        st.link_button(
+                            "Solve →",
+                            prob['cf_url'],
+                            use_container_width=True
+                        )
+        else:
+            st.warning(f"⚠️ {ladder.get('message', '')}")
+            prereqs = ladder.get('prereq_problems', [])
+            if prereqs:
+                st.markdown("**Learn these first:**")
+                for prob in prereqs:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(
+                            f"**{prob['title']}** "
+                            f"(Rating: {prob['rating']}) — "
+                            f"{prob['reason']}"
+                        )
+                    with col2:
+                        st.link_button(
+                            "Solve →",
+                            prob['cf_url'],
+                            use_container_width=True
+                        )
+    else:
+        st.info("Ladder will appear after problems are cached.")
+
+    # ── Section: Topic Problem Sets ────────────────
+    st.divider()
+    st.subheader("📖 Topic Mastery Sets")
+    st.caption(
+        "Pick a topic and work through problems "
+        "at increasing difficulty levels."
+    )
+
+    available_topics = [
+        "dp", "graphs", "binary search", "dsu",
+        "segment tree", "greedy", "strings",
+        "trees", "math"
+    ]
+    weak_tags   = data.get('skill_profile', {}).get('weak', [])
+    # Put weak tags first in the list
+    ordered_topics = (
+        [t for t in weak_tags if t in available_topics] +
+        [t for t in available_topics if t not in weak_tags]
+    )
+
+    selected_topic = st.selectbox(
+        "Choose a topic to master:",
+        ordered_topics,
+        index=0
+    )
+
+    if st.button(f"Load {selected_topic} Problem Set"):
+        with st.spinner(f"Loading {selected_topic} problems..."):
+            import requests
+            handle   = st.session_state.get('handle', '')
+            res      = requests.get(
+                f"http://localhost:8000/api/topic-set/{handle}/{selected_topic}",
+                timeout=30
+            )
+
+            if res.status_code == 200:
+                topic_data = res.json()
+                st.success(f"**{topic_data['title']}**")
+                st.caption(topic_data['description'])
+
+                topic_problems = topic_data.get('problems', [])
+                if topic_problems:
+                    for prob in topic_problems:
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        with col1:
+                            st.markdown(f"**{prob['title']}**")
+                        with col2:
+                            st.caption(
+                                f"Rating: {prob['rating']} — "
+                                f"{prob.get('level_description', '')}"
+                            )
+                        with col3:
+                            st.link_button(
+                                "Solve →",
+                                prob['cf_url'],
+                                use_container_width=True
+                            )
+                else:
+                    st.warning("No problems found for this topic at your level.")
+            else:
+                st.error("Could not load topic set.")
+
+    # ── Section: Unsolved Contest Problems ─────────
+    with st.expander("🏆 Unsolved Problems from Your Contests"):
+        st.caption(
+            "Problems you saw during live contests but never solved. "
+            "Upsolving these is the highest-ROI practice you can do."
+        )
+
+        if st.button("Load Unsolved Contest Problems"):
+            with st.spinner("Finding unsolved contest problems..."):
+                import requests
+                handle = st.session_state.get('handle', '')
+                res    = requests.get(
+                    f"http://localhost:8000/api/recommendations/{handle}",
+                    timeout=60
+                )
+                if res.status_code == 200:
+                    rec_data = res.json()
+                    unsolved = rec_data.get('unsolved_contests', [])
+
+                    if unsolved:
+                        import pandas as pd
+                        df = pd.DataFrame(unsolved)
+                        if 'cf_url' in df.columns:
+                            df = df.drop('cf_url', axis=1)
+                        st.dataframe(df, use_container_width=True)
+                    else:
+                        st.info(
+                            "No unsolved contest problems found. "
+                            "Either you solved everything or no data available."
+                        )
+
+    # ── Section: Struggled Problems ────────────────
+    with st.expander("😤 Problems You Struggled On (3+ WA/TLE)"):
+        st.caption(
+            "Problems where you made many wrong attempts. "
+            "Understanding why you struggled reveals specific pattern gaps."
+        )
+
+        if st.button("Load Struggled Problems"):
+            with st.spinner("Analyzing struggle patterns..."):
+                import requests
+                handle = st.session_state.get('handle', '')
+                res    = requests.get(
+                    f"http://localhost:8000/api/recommendations/{handle}",
+                    timeout=60
+                )
+                if res.status_code == 200:
+                    rec_data  = res.json()
+                    struggled = rec_data.get('struggled', [])
+
+                    if struggled:
+                        for item in struggled[:8]:
+                            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                            with col1:
+                                st.markdown(f"**{item['problem_id']}**")
+                                st.caption(
+                                    f"Tags: {', '.join(item['tags'][:2])}"
+                                )
+                            with col2:
+                                st.metric(
+                                    "WA",
+                                    item['wa_count']
+                                )
+                            with col3:
+                                st.metric(
+                                    "TLE",
+                                    item['tle_count']
+                                )
+                            with col4:
+                                st.link_button(
+                                    "Revisit →",
+                                    item['cf_url'],
+                                    use_container_width=True
+                                )
+                    else:
+                        st.success(
+                            "No heavily struggled problems found!"
+                        )

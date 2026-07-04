@@ -196,23 +196,23 @@ def get_all_problems_from_db():
         db.close()
 
 
-def test_connection():
-    from sqlalchemy import text
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-            print("✅ Database connected")
-            return True
-    except Exception as e:
-        print(f"❌ Connection failed: {e}")
-        return False
+# def test_connection():
+#     from sqlalchemy import text
+#     try:
+#         with engine.connect() as conn:
+#             conn.execute(text("SELECT 1"))
+#             print("Database connected")
+#             return True
+#     except Exception as e:
+#         print(f"Connection failed: {e}")
+#         return False
 
 
 def create_tables():
     Base.metadata.create_all(engine)
-    print("✅ All tables verified")
+    print("All tables verified")
 
 
-if __name__ == "__main__":
-    test_connection()
-    create_tables()
+# if __name__ == "__main__":
+#     test_connection()
+#     create_tables()
