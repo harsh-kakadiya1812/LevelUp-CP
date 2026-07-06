@@ -29,6 +29,14 @@ from db.models import (
     get_user_from_db,
     get_submissions_from_db
 )
+from ml.recommender import (
+    get_daily_recommendations,
+    get_problem_ladder,
+    get_topic_problem_set,
+    get_struggled_problems,
+    get_unsolved_from_contests,
+    get_problems_from_db
+)
 
 router = APIRouter()
 
@@ -69,7 +77,7 @@ def get_skill_profile(handle: str):
             "verdict":              sub.verdict,
             "creationTimeSeconds":  sub.timestamp,
             "author": {
-                # Use stored participant_type (NEW field)
+                # Use stored participant_type 
                 "participantType": getattr(sub, 'participant_type', 'PRACTICE') or 'PRACTICE'
             },
             "problem": {
@@ -201,7 +209,8 @@ def get_rating_prediction(handle: str):
 @router.post("/full-analysis/{handle}")
 def full_analysis(handle: str):
     """
-    Updated full analysis — now includes rating prediction.
+    Complete pipeline in one call.
+    Now includes recommendations.
     """
     if not validate_handle(handle):
         raise HTTPException(
@@ -214,15 +223,12 @@ def full_analysis(handle: str):
     submissions    = get_user_submissions(handle)
     rating_history = get_user_rating_history(handle)
 
-    # Save to DB
+    # Save
     save_user(handle, user_info)
     save_submissions(handle, submissions)
 
     # Process
-    from data.data_processor import process_user_profile
-    profile = process_user_profile(user_info, submissions, rating_history)
-
-    # Skill analysis
+    from data.data_processor import process_user_profile, compute_tag_diversity
     from ml.skill_analysis import (
         build_skill_profile,
         compute_comfort_rating,
@@ -230,39 +236,200 @@ def full_analysis(handle: str):
         find_breakthrough_topics,
         detect_stagnation
     )
-    from data.data_processor import compute_tag_diversity
+    from ml.rating_predictor import predict_rating
 
-    skill_profile  = build_skill_profile(profile['tag_features'])
+    profile = process_user_profile(user_info, submissions, rating_history)
+
+    skill_profile  = build_skill_profile(
+        profile['tag_features'],
+        user_rating=profile['current_rating']
+    )
     comfort_rating = compute_comfort_rating(profile['tag_features'])
     neglected      = find_neglected_topics(profile['tag_features'])
     breakthroughs  = find_breakthrough_topics(profile['tag_features'])
     stagnation     = detect_stagnation(skill_profile, profile['rating_history'])
+    prediction     = predict_rating(profile, skill_profile)
 
-    # Rating prediction
-    prediction = predict_rating(profile, skill_profile)
+    # Recommendations
+    solved_ids   = set(
+        f"{sub.get('problem', {}).get('contestId', '')}"
+        f"{sub.get('problem', {}).get('index', '')}"
+        for sub in submissions
+        if sub.get('verdict') == 'OK'
+    )
+
+    all_problems = get_problems_from_db()
+
+    daily_recs  = []
+    ladder_recs = {}
+
+    if all_problems:
+        daily_recs = get_daily_recommendations(
+            handle         = handle,
+            skill_profile  = skill_profile,
+            comfort_rating = comfort_rating,
+            solved_ids     = solved_ids,
+            all_problems   = all_problems
+        )
+        ladder_recs = get_problem_ladder(
+            handle         = handle,
+            skill_profile  = skill_profile,
+            current_rating = profile['current_rating'],
+            solved_ids     = solved_ids,
+            all_problems   = all_problems
+        )
 
     return {
-        # User basics
-        "handle":             handle,
-        "current_rating":     profile['current_rating'],
-        "max_rating":         profile['max_rating'],
-        "total_solved":       profile['total_solved'],
-        "weekly_solve_rate":  profile['weekly_solve_rate'],
-        "consistency_score":  profile['consistency_score'],
-        "contest_count":      profile['contest_count'],
-        "avg_solved_rating":  profile['avg_solved_rating'],
-        "tag_diversity":      compute_tag_diversity(profile['tag_features']),
-
-        # Charts
-        "rating_history":     profile['rating_history'],
-
-        # Skill analysis
-        "skill_profile":      skill_profile,
-        "comfort_rating":     comfort_rating,
-        "neglected_topics":   neglected,
+        "handle":              handle,
+        "current_rating":      profile['current_rating'],
+        "max_rating":          profile['max_rating'],
+        "total_solved":        profile['total_solved'],
+        "weekly_solve_rate":   profile['weekly_solve_rate'],
+        "consistency_score":   profile['consistency_score'],
+        "contest_count":       profile['contest_count'],
+        "avg_solved_rating":   profile['avg_solved_rating'],
+        "tag_diversity":       compute_tag_diversity(profile['tag_features']),
+        "rating_history":      profile['rating_history'],
+        "skill_profile":       skill_profile,
+        "comfort_rating":      comfort_rating,
+        "neglected_topics":    neglected,
         "breakthrough_topics": breakthroughs,
-        "stagnation":         stagnation,
-
-        # NEW: Rating prediction
-        "rating_prediction":  prediction
+        "stagnation":          stagnation,
+        "rating_prediction":   prediction,
+        "recommendations": {
+            "daily":  daily_recs,
+            "ladder": ladder_recs
+        }
     }
+
+@router.get("/recommendations/{handle}")
+def get_recommendations(handle: str):
+    """
+    Get all recommendations for a user.
+    Requires /full-analysis/{handle} called first.
+
+    Returns:
+    - Daily 3 problems
+    - Problem ladder (next topic sequence)
+    - Unsolved from past contests
+    """
+    db_subs = get_submissions_from_db(handle)
+    if not db_subs:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No data for {handle}. Call /full-analysis/{handle} first."
+        )
+
+    user = get_user_from_db(handle)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User {handle} not found"
+        )
+
+    # Reconstruct raw submissions
+    raw_subs = []
+    for sub in db_subs:
+        raw_subs.append({
+            "verdict":             sub.verdict,
+            "creationTimeSeconds": sub.timestamp,
+            "author": {
+                "participantType": getattr(sub, 'participant_type', 'PRACTICE') or 'PRACTICE'
+            },
+            "problem": {
+                "contestId": sub.problem_id[:-1] if sub.problem_id is not None else "",
+                "index":     sub.problem_id[-1]  if sub.problem_id is not None else "",
+                "rating":    sub.problem_rating,
+                "tags":      sub.tags or []
+            }
+        })
+
+    # Rebuild skill profile
+    from data.data_processor import compute_tag_features
+    from ml.skill_analysis import (
+        build_skill_profile,
+        compute_comfort_rating
+    )
+
+    tag_features   = compute_tag_features(raw_subs)
+    skill_profile  = build_skill_profile(
+        tag_features,
+        user_rating=int(getattr(user, "current_rating", 0) or 0)
+    )
+    comfort_rating = compute_comfort_rating(tag_features)
+
+    # Solved IDs
+    solved_ids = set(
+        sub.problem_id for sub in db_subs
+        if getattr(sub, "verdict", None) == 'OK'
+    )
+
+    # Load problems once
+    all_problems = get_problems_from_db()
+
+    if not all_problems:
+        raise HTTPException(
+            status_code=500,
+            detail="No problems cached. Call /api/cache-problems first."
+        )
+
+    # Generate all recommendations
+    daily     = get_daily_recommendations(
+        handle         = handle,
+        skill_profile  = skill_profile,
+        comfort_rating = comfort_rating,
+        solved_ids     = solved_ids,
+        all_problems   = all_problems
+    )
+
+    ladder = get_problem_ladder(
+        handle         = handle,
+        skill_profile  = skill_profile,
+        current_rating = user.current_rating,
+        solved_ids     = solved_ids,
+        all_problems   = all_problems
+    )
+
+    struggled = get_struggled_problems(raw_subs, solved_ids)
+
+    unsolved_contests = get_unsolved_from_contests(raw_subs, all_problems)
+
+    return {
+        "handle":            handle,
+        "comfort_rating":    comfort_rating,
+        "daily":             daily,
+        "ladder":            ladder,
+        "struggled":         struggled[:10],
+        "unsolved_contests": unsolved_contests[:10]
+    }
+
+
+@router.get("/topic-set/{handle}/{tag}")
+def get_topic_set_endpoint(handle: str, tag: str):
+    """
+    Get curated problem set for mastering one specific topic.
+    Example: /api/topic-set/tourist/dp
+    """
+    user = get_user_from_db(handle)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User {handle} not found"
+        )
+
+    db_subs    = get_submissions_from_db(handle)
+    solved_ids = set(
+        sub.problem_id for sub in db_subs
+        if getattr(sub, "verdict", None) == 'OK'
+    )
+
+    all_problems = get_problems_from_db()
+    topic_set    = get_topic_problem_set(
+        tag            = tag,
+        current_rating = user.current_rating,
+        solved_ids     = solved_ids,
+        all_problems   = all_problems
+    )
+
+    return topic_set
+

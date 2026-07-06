@@ -68,7 +68,6 @@ def get_all_problems():
     Fetch ALL problems from Codeforces problemset.
     Returns list of problems with tags and ratings.
     Used for recommendations.
-    Cache this locally — don't call repeatedly.
     """
     try:
         url = f"{BASE_URL}/problemset.problems"

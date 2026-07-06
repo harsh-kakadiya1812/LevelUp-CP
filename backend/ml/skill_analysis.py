@@ -7,8 +7,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ── Constants ─────────────────────────────────────
 
-WEAK_THRESHOLD     = 0.50
-MODERATE_THRESHOLD = 0.65
+WEAK_THRESHOLD     = 0.40
+MODERATE_THRESHOLD = 0.55
 
 # Minimum problems attempted to include a tag
 MIN_ATTEMPTS = 3
@@ -178,7 +178,6 @@ def build_skill_profile(tag_features, user_rating=0):
     levels   = {t['tag']: t['level']    for t in scored_tags}
     momentum = {t['tag']: t['momentum'] for t in scored_tags}
 
-    # ── NEW: Find never touched topics ────────────
     never_touched    = find_never_touched_topics(tag_features, user_rating)
     untouched_summary = get_untouched_summary(never_touched)
 
@@ -190,8 +189,6 @@ def build_skill_profile(tag_features, user_rating=0):
         "levels":   levels,
         "momentum": momentum,
         "details":  scored_tags,
-
-        # NEW
         "never_touched":       never_touched,
         "untouched_summary":   untouched_summary,
 
@@ -200,7 +197,7 @@ def build_skill_profile(tag_features, user_rating=0):
             "weak":          len(weak_tags),
             "moderate":      len(moderate_tags),
             "strong":        len(strong_tags),
-            "never_touched": len(never_touched)    # NEW
+            "never_touched": len(never_touched)
         }
     }
 
@@ -236,7 +233,7 @@ def compute_comfort_rating(tag_features):
 
 # ── Neglected Topics ──────────────────────────────
 
-def find_neglected_topics(tag_features, days_threshold=60):
+def find_neglected_topics(tag_features, days_threshold=45):
     """Topics not practiced in days_threshold days."""
     neglected = []
     for tag, features in tag_features.items():
@@ -340,11 +337,6 @@ def detect_stagnation(skill_profile, rating_history):
         "weak_tag_count":    weak_count
     }
 
-# Add this import at the top if not already there
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 
 def find_never_touched_topics(tag_features, user_rating=0):
     """
@@ -357,7 +349,7 @@ def find_never_touched_topics(tag_features, user_rating=0):
     Args:
         tag_features: dict of {tag: features} from data_processor
         user_rating:  current CF rating (used to prioritize which
-                      untouched topics matter most for their level)
+        untouched topics matter most for their level)
 
     Returns:
         List of dicts with tag name, priority, and why it matters
@@ -592,27 +584,27 @@ def get_untouched_summary(never_touched):
 #     breakthroughs  = find_breakthrough_topics(profile['tag_features'])
 #     stagnation     = detect_stagnation(skill, profile['rating_history'])
 
-#     print(f"📊 Skill Summary:")
+#     print(f" Skill Summary:")
 #     print(f"   Total tags: {skill['summary']['total']}")
 #     print(f"   Weak:       {skill['summary']['weak']}")
 #     print(f"   Moderate:   {skill['summary']['moderate']}")
 #     print(f"   Strong:     {skill['summary']['strong']}")
 #     print()
-#     print(f"🔴 Weak Topics:   {skill['weak'][:5]}")
-#     print(f"🟡 Moderate:      {skill['moderate'][:5]}")
-#     print(f"🟢 Strong Topics: {skill['strong'][:5]}")
+#     print(f" Weak Topics:   {skill['weak'][:5]}")
+#     print(f" Moderate:      {skill['moderate'][:5]}")
+#     print(f" Strong Topics: {skill['strong'][:5]}")
 #     print()
-#     print(f"🎯 Comfort Rating: {comfort}")
+#     print(f" Comfort Rating: {comfort}")
 #     print()
-#     print(f"🚀 Breakthrough Topics:")
+#     print(f" Breakthrough Topics:")
 #     for b in breakthroughs[:3]:
 #         print(f"   {b['tag']}: {b['message']}")
 #     print()
-#     print(f"😴 Neglected Topics (60+ days):")
+#     print(f" Neglected Topics (60+ days):")
 #     for t in neglected[:3]:
 #         print(f"   {t['tag']}: {t['days_since']} days ago")
 #     print()
-#     print(f"⚠️  Stagnation: {stagnation['is_stagnant']}")
+#     print(f"  Stagnation: {stagnation['is_stagnant']}")
 #     if stagnation['is_stagnant']:
 #         print(f"   {stagnation['reason']}")
 

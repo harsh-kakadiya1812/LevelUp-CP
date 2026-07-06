@@ -32,16 +32,7 @@ def compute_tag_features(submissions):
     """
     For every topic tag, compute 8 features that
     together give a complete picture of skill level.
-
-    New features added:
-    1. avg_rating_solved     - true comfort zone
-    2. contest_solve_pct     - live contest mastery
-    3. first_try_ac_rate     - precision / confidence
-    4. recent_avg_rating     - momentum / recent trend
-    5. momentum              - are they improving recently?
     """
-
-    # Per tag, per problem: track all submission data
     # Structure: tag -> problem_id -> {verdicts, rating, ac_timestamps, has_contest_ac}
     tag_problems = defaultdict(
         lambda: defaultdict(lambda: {
