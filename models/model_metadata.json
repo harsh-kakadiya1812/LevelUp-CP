@@ -1,0 +1,20 @@
+{
+  "features": [
+    "current_rating",
+    "solve_rate_per_week",
+    "tag_diversity",
+    "avg_problem_rating",
+    "contest_frequency",
+    "consistency_score",
+    "weak_tag_count",
+    "rating_volatility",
+    "recent_performance",
+    "total_ac_count"
+  ],
+  "mae_3m": 122.29173126220704,
+  "mae_6m": 135.41036987304688,
+  "rmse_3m": 143.26682383755144,
+  "r2_3m": 0.8547232151031494,
+  "n_training": 6909,
+  "n_test": 1728
+}
