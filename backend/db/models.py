@@ -4,8 +4,29 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
-from dotenv import load_dotenv
 import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    def load_dotenv(*args, **kwargs):
+        for candidate in Path(__file__).resolve().parents:
+            env_path = candidate / ".env"
+            if not env_path.exists():
+                continue
+
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+            return True
+
+        return False
 
 load_dotenv()
 

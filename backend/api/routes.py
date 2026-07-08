@@ -37,6 +37,12 @@ from ml.recommender import (
     get_unsolved_from_contests,
     get_problems_from_db
 )
+from llm.hints import (
+    get_next_hint,
+    get_all_hints_so_far,
+    reset_hint_session
+)
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -433,3 +439,83 @@ def get_topic_set_endpoint(handle: str, tag: str):
 
     return topic_set
 
+# ── Request Models ─────────────────────────────────
+class HintRequest(BaseModel):
+    handle:       str
+    problem_id:   str
+    problem_text: str
+
+
+class ResetRequest(BaseModel):
+    handle:     str
+    problem_id: str
+
+
+# ── Hint Endpoints ─────────────────────────────────
+
+@router.post("/hint/next")
+def get_hint(request: HintRequest):
+    """
+    Get the next hint for a user on a specific problem.
+
+    Automatically tracks hint level.
+    First call → Hint 1
+    Second call → Hint 2
+    Third call → Hint 3
+    Fourth call → Refused politely
+    """
+    if not request.problem_text.strip():
+        raise HTTPException(
+            status_code = 400,
+            detail      = "Problem text cannot be empty"
+        )
+
+    if len(request.problem_text) < 20:
+        raise HTTPException(
+            status_code = 400,
+            detail      = "Problem text too short. Paste the full problem statement."
+        )
+
+    result = get_next_hint(
+        handle       = request.handle,
+        problem_id   = request.problem_id,
+        problem_text = request.problem_text
+    )
+
+    if result.get('error'):
+        raise HTTPException(
+            status_code = 500,
+            detail      = result['error']
+        )
+
+    return result
+
+
+@router.get("/hint/history/{handle}/{problem_id}")
+def get_hint_history(handle: str, problem_id: str):
+    """
+    Get all hints given so far for a problem.
+    Used when user comes back to same problem.
+    """
+    history = get_all_hints_so_far(handle, problem_id)
+    return history
+
+
+@router.post("/hint/reset")
+def reset_hints(request: ResetRequest):
+    """
+    Reset hints for a problem.
+    User wants to start fresh.
+    """
+    success = reset_hint_session(
+        handle     = request.handle,
+        problem_id = request.problem_id
+    )
+
+    if success:
+        return {"message": "Hint session reset successfully"}
+    else:
+        raise HTTPException(
+            status_code = 500,
+            detail      = "Failed to reset hint session"
+        )

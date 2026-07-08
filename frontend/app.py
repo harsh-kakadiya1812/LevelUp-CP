@@ -909,3 +909,246 @@ if 'data' in st.session_state:
                         st.success(
                             "No heavily struggled problems found!"
                         )
+
+# ── Section: Progressive Hint System ──────────────
+
+if 'data' in st.session_state:
+
+    st.divider()
+    st.subheader("💡 Progressive Hint System")
+    st.caption(
+        "Stuck on a problem? Get hints one at a time. "
+        "The system will never reveal the full solution."
+    )
+
+    handle = st.session_state.get('handle', '')
+
+    # ── Problem Input ──────────────────────────────
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        problem_id = st.text_input(
+            "Problem ID (any unique name for this problem)",
+            placeholder = "e.g. 1234A or two-sum or contest-div2-C",
+            key         = "hint_problem_id"
+        )
+
+    with col2:
+        st.write("")
+        st.write("")
+        if st.button("🔄 Reset Hints", key="reset_hints_btn"):
+            if problem_id and handle:
+                res = requests.post(
+                    f"{API}/hint/reset",
+                    json    = {
+                        "handle":     handle,
+                        "problem_id": problem_id
+                    },
+                    timeout = 10
+                )
+                if res.status_code == 200:
+                    # Clear session state for this problem
+                    if 'hints_shown' in st.session_state:
+                        del st.session_state['hints_shown']
+                    st.success("Hints reset! Starting fresh.")
+                    st.rerun()
+
+    problem_text = st.text_area(
+        "Paste the full problem statement here",
+        placeholder = (
+            "Paste the complete problem statement here...\n"
+            "Include: problem description, input format, "
+            "output format, constraints, and examples."
+        ),
+        height = 200,
+        key    = "hint_problem_text"
+    )
+
+    # ── Restore Previous Hints ─────────────────────
+    # When user comes back to same problem
+    if problem_id and handle:
+        if st.button("📜 Restore Previous Hints", key="restore_btn"):
+            res = requests.get(
+                f"{API}/hint/history/{handle}/{problem_id}",
+                timeout = 10
+            )
+            if res.status_code == 200:
+                history = res.json()
+                if history['has_session']:
+                    st.session_state['hints_shown'] = history['hints']
+                    st.success(
+                        f"Restored {len(history['hints'])} previous hints"
+                    )
+                else:
+                    st.info("No previous hints found for this problem.")
+
+    # ── Display Previously Given Hints ────────────
+    if 'hints_shown' not in st.session_state:
+        st.session_state['hints_shown'] = []
+
+    if st.session_state['hints_shown']:
+        st.markdown("**Hints given so far:**")
+        for hint in st.session_state['hints_shown']:
+            hint_num = hint['hint_number']
+
+            if hint_num == 1:
+                color = "🟡"
+                label = "Hint 1 — Gentle Nudge"
+            elif hint_num == 2:
+                color = "🟠"
+                label = "Hint 2 — Specific Direction"
+            else:
+                color = "🔴"
+                label = "Hint 3 — Near Complete Approach"
+
+            with st.expander(
+                f"{color} {label}",
+                expanded = (hint_num == len(st.session_state['hints_shown']))
+            ):
+                st.markdown(hint['hint_text'])
+
+    # ── Get Next Hint Button ───────────────────────
+    hints_so_far  = len(st.session_state['hints_shown'])
+    max_hints     = 3
+    hints_left    = max_hints - hints_so_far
+
+    st.write("")
+
+    # Show appropriate button based on hint level
+    if hints_so_far == 0:
+        btn_label = "💡 Get Hint 1"
+        btn_help  = "Get a gentle nudge toward the right approach"
+    elif hints_so_far == 1:
+        btn_label = "💡 Get Hint 2"
+        btn_help  = "Get a more specific direction"
+    elif hints_so_far == 2:
+        btn_label = "💡 Get Hint 3 (Final)"
+        btn_help  = "Get the near-complete approach (no code)"
+    else:
+        btn_label = "🚫 No More Hints Available"
+        btn_help  = "You have received all 3 hints"
+
+    col1, col2, col3 = st.columns([2, 1, 2])
+
+    with col1:
+        get_hint_btn = st.button(
+            btn_label,
+            disabled        = (hints_so_far >= max_hints or not problem_text or not problem_id),
+            use_container_width = True,
+            type            = "primary" if hints_so_far < max_hints else "secondary",
+            key             = "get_hint_btn"
+        )
+
+    with col2:
+        # Progress indicator
+        st.write("")
+        if hints_so_far < max_hints:
+            st.caption(
+                f"{hints_left} hint{'s' if hints_left > 1 else ''} remaining"
+            )
+        else:
+            st.caption("All hints used")
+
+    # ── Handle Get Hint Click ──────────────────────
+    if get_hint_btn:
+        if not problem_text.strip():
+            st.error("Please paste the problem statement first.")
+
+        elif not problem_id.strip():
+            st.error("Please enter a Problem ID first.")
+
+        elif hints_so_far >= max_hints:
+            st.warning(
+                "You have already received all 3 hints. "
+                "Try implementing Hint 3. You are closer than you think!"
+            )
+
+        else:
+            with st.spinner(
+                f"Generating Hint {hints_so_far + 1}... "
+                f"(thinking like a coach)"
+            ):
+                try:
+                    res = requests.post(
+                        f"{API}/hint/next",
+                        json = {
+                            "handle":       handle,
+                            "problem_id":   problem_id.strip(),
+                            "problem_text": problem_text.strip()
+                        },
+                        timeout = 30
+                    )
+
+                    if res.status_code == 200:
+                        result   = res.json()
+                        hint_num = result['hint_number']
+                        hint_txt = result['hint_text']
+                        is_final = result['is_final']
+
+                        # Add to shown hints
+                        st.session_state['hints_shown'].append({
+                            "hint_number": hint_num,
+                            "hint_text":   hint_txt
+                        })
+
+                        # Show success message
+                        if is_final:
+                            st.success(
+                                "💡 Final hint given! "
+                                "Try implementing this approach. "
+                                "You can do it!"
+                            )
+                        else:
+                            remaining = result.get('hints_remaining', 0)
+                            st.info(
+                                f"Hint {hint_num} ready. "
+                                f"{remaining} more hint{'s' if remaining > 1 else ''} "
+                                f"available if needed."
+                            )
+
+                        # Rerun to show new hint
+                        st.rerun()
+
+                    elif res.status_code == 400:
+                        st.error(res.json().get('detail', 'Invalid request'))
+
+                    else:
+                        st.error(
+                            "Failed to generate hint. "
+                            "Check if Gemini API key is set correctly."
+                        )
+
+                except requests.exceptions.Timeout:
+                    st.error(
+                        "Request timed out. "
+                        "Gemini is taking too long. Try again."
+                    )
+                except requests.exceptions.ConnectionError:
+                    st.error(
+                        "Cannot connect to backend. "
+                        "Make sure FastAPI is running."
+                    )
+
+    # ── Hint Usage Tips ────────────────────────────
+    with st.expander("ℹ️ How to use hints effectively"):
+        st.markdown("""
+        **Best practices for using the hint system:**
+
+        1. **Try for at least 20-30 minutes before asking for Hint 1.**
+           The struggle is where learning happens.
+
+        2. **After each hint, close this panel and try again.**
+           Don't rush to the next hint immediately.
+
+        3. **Hint 1** gives you the general direction.
+           If you can figure it out from here, you've learned the most.
+
+        4. **Hint 2** gives you the specific algorithm category.
+           Try to implement it before asking for Hint 3.
+
+        5. **Hint 3** is near the full approach.
+           If you still can't implement after Hint 3, read the editorial.
+
+        6. **After solving**, upsolve similar problems.
+           Check your Daily Recommendations for suggestions.
+        """)
