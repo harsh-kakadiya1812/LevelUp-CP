@@ -25,3 +25,5 @@ Thumbs.db
 
 # Only add below line if models are large (> 100MB)
 # models/*.pkl
+
+database/
