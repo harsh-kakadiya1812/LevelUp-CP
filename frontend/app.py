@@ -3,9 +3,19 @@ import requests
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+import os
 
-API = "http://localhost:8000/api"
+# Reads from Streamlit secrets in production
+# Falls back to localhost in development
+try:
+    BACKEND_URL = st.secrets["BACKEND_URL"]
+except:
+    BACKEND_URL = os.getenv(
+        "BACKEND_URL",
+        "http://localhost:8000"
+    )
 
+API = BACKEND_URL + "/api"
 st.set_page_config(
     page_title="CP Coach",
     page_icon="🏆",

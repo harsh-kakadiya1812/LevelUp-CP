@@ -34,10 +34,21 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable is not set")
 
-engine       = create_engine(DATABASE_URL)
+# Supabase gives postgres:// but SQLAlchemy needs postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgres://",
+        "postgresql://",
+        1
+    )
+
+engine       = create_engine(
+    DATABASE_URL,
+    pool_pre_ping = True,    # handles dropped connections
+    pool_recycle  = 300      # recycle connections every 5 min
+)
 SessionLocal = sessionmaker(bind=engine)
 Base         = declarative_base()
-
 
 # ── Table Definitions ─────────────────────────────
 
