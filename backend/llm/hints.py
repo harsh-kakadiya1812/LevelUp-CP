@@ -27,7 +27,7 @@ except ModuleNotFoundError:
 if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from db.models import SessionLocal, HintSession
+from ..db.models import SessionLocal, HintSession
 try:
     # Import dynamically to avoid static import-time resolution errors
     import importlib
@@ -148,7 +148,8 @@ def save_hint_session(handle, problem_id, hint_level, conversation):
             # Update existing session
             existing.hint_level   = hint_level
             existing.conversation = conversation
-            existing.updated_at   = datetime.now()
+            # mypy/typing: HintSession.updated_at is a Column[...] type; ignore assignment
+            existing.updated_at   = datetime.now()  # type: ignore[assignment]
         else:
             # Create new session
             new_session = HintSession(

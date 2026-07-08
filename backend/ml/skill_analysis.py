@@ -354,7 +354,7 @@ def find_never_touched_topics(tag_features, user_rating=0):
     Returns:
         List of dicts with tag name, priority, and why it matters
     """
-    from data.cf_api import get_all_tags
+    from ..data.cf_api import get_all_tags
 
     # All tags the user has at least attempted
     practiced_tags = set(tag_features.keys())

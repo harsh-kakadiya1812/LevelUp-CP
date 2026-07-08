@@ -165,8 +165,10 @@ def predict_rating(profile, skill_profile):
         }
 
     # Get MAE for confidence interval
-    mae_3m = METADATA.get('mae_3m', 100)
-    mae_6m = METADATA.get('mae_6m', 130)
+    # METADATA may be None; guard against that
+    _meta = METADATA or {}
+    mae_3m = _meta.get('mae_3m', 100)
+    mae_6m = _meta.get('mae_6m', 130)
 
     # Make predictions
     X         = [feature_vector]
@@ -178,9 +180,12 @@ def predict_rating(profile, skill_profile):
     pred_6m_rounded = round(pred_6m / 10) * 10
 
     # Build feature breakdown for explanation
-    features_used = {
-        f: v for f, v in zip(METADATA['features'], feature_vector)
-    }
+    # METADATA may be None or missing 'features'; fall back to generated names
+    features_list = (_meta.get('features') if isinstance(_meta, dict) else None) or []
+    if not features_list:
+        features_list = [f'feature_{i}' for i in range(len(feature_vector))]
+
+    features_used = {f: v for f, v in zip(features_list, feature_vector)}
 
     # Generate explanation
     explanation = generate_explanation(
@@ -209,7 +214,7 @@ def predict_rating(profile, skill_profile):
         "explanation":     explanation,
         "confidence_note": (
             f"Model accuracy: ±{mae_3m:.0f} rating points on average. "
-            f"Trained on {METADATA.get('n_training', 0)} real CF user snapshots."
+            f"Trained on {_meta.get('n_training', 0)} real CF user snapshots."
         )
     }
 
@@ -343,49 +348,49 @@ def generate_explanation(profile, skill_profile, features_used, pred_3m, mae):
     }
 
 
-# ── Test ──────────────────────────────────────────
+# # ── Test ──────────────────────────────────────────
 
-if __name__ == "__main__":
-    if MODEL_3M is None:
-        print("No model found. Train it in Jupyter notebook first.")
-        exit()
+# if __name__ == "__main__":
+#     if MODEL_3M is None:
+#         print("No model found. Train it in Jupyter notebook first.")
+#         exit()
 
-    # Test with dummy profile
-    dummy_profile = {
-        'current_rating':    1350,
-        'weekly_solve_rate': 5.2,
-        'avg_solved_rating': 1280,
-        'consistency_score': 0.65,
-        'total_solved':      423,
-        'tag_diversity':     14,
-        'rating_history': [
-            {'timestamp': 1700000000, 'new_rating': 1300, 'old_rating': 1250},
-            {'timestamp': 1702000000, 'new_rating': 1350, 'old_rating': 1300},
-        ]
-    }
+#     # Test with dummy profile
+#     dummy_profile = {
+#         'current_rating':    1350,
+#         'weekly_solve_rate': 5.2,
+#         'avg_solved_rating': 1280,
+#         'consistency_score': 0.65,
+#         'total_solved':      423,
+#         'tag_diversity':     14,
+#         'rating_history': [
+#             {'timestamp': 1700000000, 'new_rating': 1300, 'old_rating': 1250},
+#             {'timestamp': 1702000000, 'new_rating': 1350, 'old_rating': 1300},
+#         ]
+#     }
 
-    dummy_skill = {
-        'summary': {'weak': 4, 'moderate': 8, 'strong': 3},
-        'weak': ['graphs', 'dsu', 'flows', 'trees']
-    }
+#     dummy_skill = {
+#         'summary': {'weak': 4, 'moderate': 8, 'strong': 3},
+#         'weak': ['graphs', 'dsu', 'flows', 'trees']
+#     }
 
-    result = predict_rating(dummy_profile, dummy_skill)
+#     result = predict_rating(dummy_profile, dummy_skill)
 
-    print("Rating Prediction Test:")
-    print(f"Current: {result['current_rating']}")
-    print()
-    print(f"3 Months: {result['3_months']['low']} – {result['3_months']['high']}")
-    print(f"          (mid: {result['3_months']['mid']})")
-    print()
-    print(f"6 Months: {result['6_months']['low']} – {result['6_months']['high']}")
-    print()
-    print(f"Summary: {result['explanation']['summary']}")
-    print()
-    print("Factors:")
-    for f in result['explanation']['factors']:
-        icon = "✅" if f['impact'] == 'positive' else ("⚠️" if f['impact'] == 'neutral' else "❌")
-        print(f"  {icon} {f['feature']}: {f['detail']}")
-    print()
-    print("Suggestions:")
-    for s in result['explanation']['suggestions']:
-        print(f"  → {s}")
+#     print("Rating Prediction Test:")
+#     print(f"Current: {result['current_rating']}")
+#     print()
+#     print(f"3 Months: {result['3_months']['low']} – {result['3_months']['high']}")
+#     print(f"          (mid: {result['3_months']['mid']})")
+#     print()
+#     print(f"6 Months: {result['6_months']['low']} – {result['6_months']['high']}")
+#     print()
+#     print(f"Summary: {result['explanation']['summary']}")
+#     print()
+#     print("Factors:")
+#     for f in result['explanation']['factors']:
+#         icon = "✅" if f['impact'] == 'positive' else ("⚠️" if f['impact'] == 'neutral' else "❌")
+#         print(f"  {icon} {f['feature']}: {f['detail']}")
+#     print()
+#     print("Suggestions:")
+#     for s in result['explanation']['suggestions']:
+#         print(f"  → {s}")

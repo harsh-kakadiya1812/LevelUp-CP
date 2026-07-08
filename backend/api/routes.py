@@ -1,35 +1,35 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from ml.rating_predictor import predict_rating, extract_features
+from ..ml.rating_predictor import predict_rating, extract_features
 from fastapi import APIRouter, HTTPException
-from data.cf_api import (
+from ..data.cf_api import (
     get_user_info,
     get_user_submissions,
     get_user_rating_history,
     get_all_problems,
     validate_handle
 )
-from data.data_processor import (
+from ..data.data_processor import (
     process_user_profile,
     compute_tag_features,
     compute_tag_diversity
 )
-from ml.skill_analysis import (
+from ..ml.skill_analysis import (
     build_skill_profile,
     compute_comfort_rating,
     find_neglected_topics,
     find_breakthrough_topics,
     detect_stagnation
 )
-from db.models import (
+from ..db.models import (
     save_user,
     save_submissions,
     save_problems,
     get_user_from_db,
     get_submissions_from_db
 )
-from ml.recommender import (
+from ..ml.recommender import (
     get_daily_recommendations,
     get_problem_ladder,
     get_topic_problem_set,
@@ -37,7 +37,7 @@ from ml.recommender import (
     get_unsolved_from_contests,
     get_problems_from_db
 )
-from llm.hints import (
+from ..llm.hints import (
     get_next_hint,
     get_all_hints_so_far,
     reset_hint_session
@@ -60,10 +60,6 @@ def fetch_user(handle: str):
     save_submissions(handle, submissions)
 
     return {"message": f"Data fetched and saved for {handle}"}
-
-
-
-
 
 @router.get("/skill-profile/{handle}")
 def get_skill_profile(handle: str):
@@ -159,13 +155,13 @@ def get_rating_prediction(handle: str):
         })
 
     # Rebuild profile from stored data
-    from data.data_processor import (
+    from ..data.data_processor import (
         compute_tag_features,
         compute_avg_solved_rating,
         compute_weekly_solve_rate,
         compute_consistency_score
     )
-    from ml.skill_analysis import (
+    from ..ml.skill_analysis import (
         build_skill_profile,
         compute_comfort_rating
     )
@@ -234,15 +230,15 @@ def full_analysis(handle: str):
     save_submissions(handle, submissions)
 
     # Process
-    from data.data_processor import process_user_profile, compute_tag_diversity
-    from ml.skill_analysis import (
+    from ..data.data_processor import process_user_profile, compute_tag_diversity
+    from ..ml.skill_analysis import (
         build_skill_profile,
         compute_comfort_rating,
         find_neglected_topics,
         find_breakthrough_topics,
         detect_stagnation
     )
-    from ml.rating_predictor import predict_rating
+    from ..ml.rating_predictor import predict_rating
 
     profile = process_user_profile(user_info, submissions, rating_history)
 
@@ -351,8 +347,8 @@ def get_recommendations(handle: str):
         })
 
     # Rebuild skill profile
-    from data.data_processor import compute_tag_features
-    from ml.skill_analysis import (
+    from ..data.data_processor import compute_tag_features
+    from ..ml.skill_analysis import (
         build_skill_profile,
         compute_comfort_rating
     )
