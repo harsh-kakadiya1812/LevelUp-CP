@@ -109,13 +109,21 @@ def get_skill_profile(handle: str):
 
 @router.post("/cache-problems")
 def cache_problems():
-    """Cache all CF problems. Run once."""
-    problems = get_all_problems()
-    if not problems:
-        raise HTTPException(status_code=500, detail="Failed to fetch problems")
-    save_problems(problems)
-    return {"message": f"Cached {len(problems)} problems"}
+    try:
+        problems = get_all_problems()
+        print(f"Fetched {len(problems)} problems")
 
+        if not problems:
+            raise HTTPException(status_code=500, detail="Failed to fetch problems")
+
+        save_problems(problems)
+
+        return {"message": f"Cached {len(problems)} problems"}
+
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise
 
 @router.get("/health")
 def health():

@@ -195,9 +195,11 @@ def save_problems(problems):
 
         db.commit()
         print(f"✅ {saved} new problems cached")
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print(f"❌ Error saving problems: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
     finally:
         db.close()
 
