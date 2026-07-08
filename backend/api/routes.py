@@ -112,11 +112,17 @@ def cache_problems():
     problems = get_all_problems()
 
     if not problems:
-        raise HTTPException(status_code=500, detail="Failed to fetch problems")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch problems"
+        )
 
-    save_problems(problems[:10])   # only first 10
+    save_problems(problems)
 
-    return {"message": f"Cached {10} problems"}
+    return {
+        "message": f"Cached {len(problems)} problems"
+    }
+
 
 @router.get("/health")
 def health():

@@ -6,6 +6,8 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
 import os
 from pathlib import Path
+from sqlalchemy.dialects.postgresql import insert
+
 
 try:
     from dotenv import load_dotenv
@@ -173,36 +175,46 @@ def save_submissions(handle, submissions):
 def save_problems(problems):
     db = SessionLocal()
     try:
-        saved = 0
+        rows = []
+
         for prob in problems:
-            contest_id = prob.get('contestId', '')
-            index      = prob.get('index', '')
-            problem_id = f"{contest_id}{index}"
+            contest_id = prob.get("contestId")
+            index = prob.get("index")
 
-            existing = db.query(Problem).filter(
-                Problem.problem_id == problem_id
-            ).first()
+            if contest_id is None or index is None:
+                continue
 
-            if not existing:
-                problem = Problem(
-                    problem_id = problem_id,
-                    title      = prob.get('name', ''),
-                    rating     = prob.get('rating', 0),
-                    tags       = prob.get('tags', [])
-                )
-                db.add(problem)
-                saved += 1
+            rows.append({
+                "problem_id": f"{contest_id}{index}",
+                "title": prob.get("name", ""),
+                "rating": prob.get("rating") or 0,
+                "tags": prob.get("tags", [])
+            })
 
+        if not rows:
+            print("No problems to insert.")
+            return
+
+        stmt = insert(Problem).values(rows)
+
+        # Ignore duplicates
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=["problem_id"]
+        )
+
+        result = db.execute(stmt)
         db.commit()
-        print(f"✅ {saved} new problems cached")
+
+        print(f"✅ Inserted {len(rows)} new problems")
+
     except Exception:
         db.rollback()
         import traceback
         traceback.print_exc()
         raise
+
     finally:
         db.close()
-
 
 def get_user_from_db(handle):
     db = SessionLocal()
