@@ -12,7 +12,7 @@ try:
 except:
     BACKEND_URL = os.getenv(
         "BACKEND_URL",
-        "http://localhost:8000"
+        "https://levelup-cp.onrender.com"
     )
 
 API = BACKEND_URL + "/api"
@@ -810,7 +810,7 @@ if 'data' in st.session_state:
             import requests
             handle   = st.session_state.get('handle', '')
             res      = requests.get(
-                f"http://localhost:8000/api/topic-set/{handle}/{selected_topic}",
+                f"https://levelup-cp.onrender.com/api/topic-set/{handle}/{selected_topic}",
                 timeout=30
             )
 
@@ -853,7 +853,7 @@ if 'data' in st.session_state:
                 import requests
                 handle = st.session_state.get('handle', '')
                 res    = requests.get(
-                    f"http://localhost:8000/api/recommendations/{handle}",
+                    f"https://levelup-cp.onrender.com/api/recommendations/{handle}",
                     timeout=60
                 )
                 if res.status_code == 200:
@@ -884,7 +884,7 @@ if 'data' in st.session_state:
                 import requests
                 handle = st.session_state.get('handle', '')
                 res    = requests.get(
-                    f"http://localhost:8000/api/recommendations/{handle}",
+                    f"https://levelup-cp.onrender.com/api/recommendations/{handle}",
                     timeout=60
                 )
                 if res.status_code == 200:
