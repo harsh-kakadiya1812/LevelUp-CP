@@ -4,6 +4,9 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import os
+import threading
+import requests
+import time
 
 # Reads from Streamlit secrets in production
 # Falls back to localhost in development
@@ -1162,3 +1165,28 @@ if 'data' in st.session_state:
         6. **After solving**, upsolve similar problems.
            Check your Daily Recommendations for suggestions.
         """)
+
+def keep_backend_alive():
+    """
+    Pings backend every 10 minutes to prevent
+    Render free tier from sleeping.
+    """
+    while True:
+        try:
+            requests.get(
+                f"{BACKEND_URL}/health",
+                timeout = 5
+            )
+        except:
+            pass
+        time.sleep(600)   # every 10 minutes
+
+# Start keep-alive in background thread
+# Only runs once even if Streamlit reruns
+if 'keep_alive_started' not in st.session_state:
+    st.session_state['keep_alive_started'] = True
+    thread = threading.Thread(
+        target = keep_backend_alive,
+        daemon = True
+    )
+    thread.start()
