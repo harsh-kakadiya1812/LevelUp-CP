@@ -91,7 +91,7 @@ Enter any Codeforces handle and get your complete coaching dashboard instantly.
 
 ### Rating Prediction Model
 - Algorithm: XGBoost Regression
-- Training data: 5,000+ labeled snapshots from 1,000+ CF users
+- Training data: 8,000+ labeled snapshots from 1,400+ CF users
 - Features: current rating, solve rate per week, tag diversity,
   avg problem rating, contest frequency, consistency score,
   weak tag count, rating volatility, recent performance
@@ -111,7 +111,7 @@ Enter any Codeforces handle and get your complete coaching dashboard instantly.
    via Codeforces public API
 2. Parse and structure 10,000+ submissions per user
 3. Compute 8 features per topic tag
-4. Cache 9,000+ CF problems locally for sub-second filtering
+4. Cache 12,000+ CF problems locally for sub-second filtering
 5. Store everything in PostgreSQL on Supabase
 
 ## ⚙️ How It Works
@@ -126,6 +126,7 @@ Enter any Codeforces handle and get your complete coaching dashboard instantly.
 
 ## 📁 Project Structure
 
+```text
 cp-coach/
 ├── backend/
 │   ├── api/routes.py          # FastAPI endpoints
@@ -151,30 +152,30 @@ cp-coach/
 - Codeforces account (for API access)
 - Google Gemini API key
 
-### Setup
+## Setup
 
-# Clone the repo
+### Clone the repo
 git clone https://github.com/harsh-kakadiya1812/LevelUp-CP
 cd LevelUp-CP
 
-# Create virtual environment
+### Create virtual environment
 python -m venv venv
 venv\Scripts\activate   # Windows
 source venv/bin/activate # Mac/Linux
 
-# Install dependencies
+### Install dependencies
 pip install -r requirements.txt
 
-# Set up environment variables
-# Create .env file with:
+### Set up environment variables
+Create .env file with:
 DATABASE_URL=your_postgresql_url
 GEMINI_API_KEY=your_gemini_key
 
-# Start backend
+### Start backend
 cd backend
 uvicorn main:app --reload
 
-# Start frontend (new terminal)
+### Start frontend (new terminal)
 cd frontend
 streamlit run app.py
 
@@ -191,8 +192,8 @@ streamlit run app.py
 | Metric              | Value                    |
 |---------------------|--------------------------|
 | Algorithm           | XGBoost Regression       |
-| Training samples    | 5,000+                   |
-| Unique users        | 1,000+                   |
+| Training samples    | 8,000+                   |
+| Unique users        | 1,400+                   |
 | Cross-validation    | 5-fold                   |
 | MAE (3-month)       | 122 ± 6 rating points    |
 | Prediction format   | Range (e.g. 1380–1620)   |
@@ -201,7 +202,7 @@ streamlit run app.py
 
 | Service         | Platform        | URL                                    |
 |-----------------|-----------------|----------------------------------------|
-| Frontend        | Streamlit Cloud | levelup-cp.streamlit.app               |
+| Frontend        | Streamlit Cloud | levelup-cp-1812.streamlit.app          |
 | Backend API     | Render          | levelup-cp-api.onrender.com            |
 | Database        | Supabase        | PostgreSQL (cloud hosted)              |
 | API Docs        | FastAPI/Swagger | levelup-cp-api.onrender.com/docs       |
