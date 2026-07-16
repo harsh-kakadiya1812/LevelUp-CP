@@ -87,17 +87,6 @@ Enter any Codeforces handle and get your complete coaching dashboard instantly.
 | Deployment     | Render (backend), Streamlit Cloud (frontend) |
 | Language       | Python 3.12                   |
 
-## 🏗️ Architecture
-
-User → Streamlit Frontend
-              ↓
-       FastAPI Backend (Render)
-              ↓
-    ┌─────────┼─────────┐
-    ↓         ↓         ↓
-Supabase  Codeforces  Gemini
-  (DB)      API        API
-
 ## 🤖 ML Models
 
 ### Rating Prediction Model
