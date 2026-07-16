@@ -143,7 +143,7 @@ cp-coach/
 ├── models/                    # Trained .pkl files
 ├── notebooks/                 # Jupyter exploration
 └── data_collection/           # Training data pipeline
-
+```
 ## 🖥️ Running Locally
 
 ### Prerequisites
